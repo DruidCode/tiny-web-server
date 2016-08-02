@@ -5,7 +5,7 @@
  *    */
 #include "csapp.h"
 
-#define MAX_EVENTS 10 //epool event
+#define MAX_EVENTS 65535 //epool event
 
 void doit(int fd);
 void add_client(int connfd, pool *p);
@@ -19,12 +19,12 @@ void serve_dynamic(int fd, char *filename, char *cgiargs);
 void clienterror(int fd, char *cause, char *errnum, 
 		 char *shortmsg, char *longmsg);
 
-void sigchld_handler(int sig) //line:conc:echoserverp:handlerstart
+void sigchld_handler(int sig)
 {
     while (waitpid(-1, 0, WNOHANG) > 0)
 	;
     return;
-} //line:conc:echoserverp:handlerend
+}
 
 int main(int argc, char **argv) 
 {
@@ -46,6 +46,9 @@ int main(int argc, char **argv)
 
 	signal(SIGPIPE, SIG_IGN); //SIG_IGN is the ignore signal handler
 	//signal(SIGCHLD, sigchld_handler);
+	
+	tiny_daemon();
+
     listenfd = Open_listenfd(port);
 	clientlen = sizeof(clientaddr);
 	
@@ -296,3 +299,46 @@ void clienterror(int fd, char *cause, char *errnum,
     Rio_writen(fd, body, strlen(body));
 }
 /* $end clienterror */
+
+int tiny_daemon()
+{
+	int fd;
+	pid_t pid;
+	struct sigaction	sa;
+
+	switch ( pid = fork() ) {
+		case -1:
+			fprintf(stderr, "fork error");
+			return -1;
+		case 0:
+			break;
+		default:
+			exit(0);
+	}
+
+	setsid();
+	umask(0);
+
+	sa.sa_handler = SIG_IGN;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+
+	fd = open("/dev/null", O_RDWR);
+	if ( fd == -1 ) {
+		fprintf(stderr, "open dev/null failed");
+		return -1;
+	}
+
+	if ( dup2(fd, STDIN_FILENO) == -1 ) {
+		fprintf(stderr, "dup2(STDIN) failed");
+		return -1;
+	}
+
+	if ( dup2(fd, STDOUT_FILENO) == -1 ) {
+		fprintf(stderr, "dup2(STDOUT) failed");
+		return -1;
+	}
+}
+
+
+
